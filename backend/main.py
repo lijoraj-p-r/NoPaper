@@ -15,7 +15,7 @@ from .models import Base, User, Book, Order, OrderItem
 
 Base.metadata.create_all(bind=engine)
 
-SECRET_KEY = "CHANGE_ME_TO_A_RANDOM_SECRET"
+SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME_TO_A_RANDOM_SECRET")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -26,9 +26,11 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI(title="Online Book Shop API")
 
+# CORS configuration - allow multiple origins
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
