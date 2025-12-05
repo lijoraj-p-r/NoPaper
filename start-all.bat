@@ -22,3 +22,4 @@ echo Both servers are starting in separate windows...
 echo Press any key to exit this window (servers will keep running)
 pause >nul
 
+

@@ -1,0 +1,49 @@
+========================================
+  NoPaper Application - All Links
+========================================
+
+MAIN APPLICATION:
+-----------------
+Frontend (User Interface):
+  http://localhost:3000
+
+Backend API:
+  http://localhost:8000
+
+API DOCUMENTATION:
+------------------
+Swagger UI (Interactive):
+  http://localhost:8000/docs
+
+ReDoc (Alternative Docs):
+  http://localhost:8000/redoc
+
+API ENDPOINTS:
+--------------
+Authentication:
+  POST http://localhost:8000/register
+  POST http://localhost:8000/login
+
+Books:
+  GET  http://localhost:8000/books
+  GET  http://localhost:8000/books/{id}/download
+
+Purchase:
+  POST http://localhost:8000/buy
+
+Admin:
+  POST http://localhost:8000/admin/books
+
+QUICK TEST:
+-----------
+Backend Status:
+  http://localhost:8000/
+
+List All Books:
+  http://localhost:8000/books
+
+========================================
+STATUS CHECK:
+Run: check-status.ps1 or check-status.bat
+========================================
+
