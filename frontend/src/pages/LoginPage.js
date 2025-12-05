@@ -28,11 +28,18 @@ function LoginPage() {
         localStorage.setItem("email", email);
         localStorage.setItem("password", password);
         localStorage.setItem("role", res.data.role);
-        if (res.data.role === "admin") {
-          navigate("/admin");
-        } else {
-          navigate("/user");
-        }
+        
+        // Trigger storage event for App.js to update
+        window.dispatchEvent(new Event("storage"));
+        
+        // Small delay to ensure state updates
+        setTimeout(() => {
+          if (res.data.role === "admin") {
+            navigate("/admin", { replace: true });
+          } else {
+            navigate("/user", { replace: true });
+          }
+        }, 100);
       } else {
         // signup
         await axios.post(`${API_URL}/register`, {
