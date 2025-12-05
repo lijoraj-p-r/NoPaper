@@ -2,7 +2,6 @@ from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, H
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from pydantic import BaseModel, EmailStr, Field
@@ -31,7 +30,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME_TO_A_RANDOM_SECRET")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password encryption removed - storing passwords as plain text
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads", "pdfs")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -57,30 +56,19 @@ class Token(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=7, max_length=72, description="Password must be between 7 and 72 characters")
+    password: str = Field(..., min_length=7, description="Password must be at least 7 characters")
     
     @field_validator('password')
     @classmethod
     def validate_password(cls, v):
         if len(v) < 7:
             raise ValueError('Password must be at least 7 characters long')
-        # Bcrypt has a 72-byte limit, check byte length
-        if len(v.encode('utf-8')) > 72:
-            raise ValueError('Password cannot be longer than 72 bytes')
         return v
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str = Field(..., max_length=72, description="Password cannot be longer than 72 bytes")
-    
-    @field_validator('password')
-    @classmethod
-    def validate_password(cls, v):
-        # Bcrypt has a 72-byte limit, check byte length
-        if len(v.encode('utf-8')) > 72:
-            raise ValueError('Password cannot be longer than 72 bytes')
-        return v
+    password: str
 
 
 class BookOut(BaseModel):
@@ -99,17 +87,13 @@ class BuyRequest(BaseModel):
 
 
 def get_password_hash(password: str) -> str:
-    # Bcrypt has a 72 byte limit, truncate if necessary
-    if len(password.encode('utf-8')) > 72:
-        password = password[:72]
-    return pwd_context.hash(password)
+    # No encryption - return password as-is
+    return password
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    # Bcrypt has a 72 byte limit, truncate if necessary
-    if len(plain_password.encode('utf-8')) > 72:
-        plain_password = plain_password[:72]
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain_password: str, stored_password: str) -> bool:
+    # No encryption - direct comparison
+    return plain_password == stored_password
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
