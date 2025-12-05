@@ -9,8 +9,15 @@ from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 import os
 
-from .db import get_db, engine
-from .models import Base, User, Book, Order, OrderItem
+# Import handling for both package and direct execution
+import sys
+from pathlib import Path
+backend_path = Path(__file__).parent
+if str(backend_path) not in sys.path:
+    sys.path.insert(0, str(backend_path))
+
+from db import get_db, engine
+from models import Base, User, Book, Order, OrderItem
 
 
 Base.metadata.create_all(bind=engine)
@@ -61,7 +68,7 @@ class BookOut(BaseModel):
     description: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class BuyRequest(BaseModel):
