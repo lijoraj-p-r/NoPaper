@@ -7,6 +7,22 @@ Write-Host ""
 # Get the script directory
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+# Stop any existing servers first
+Write-Host "Checking for running servers..." -ForegroundColor Yellow
+$pythonProcesses = Get-Process | Where-Object {$_.ProcessName -like "*python*"} -ErrorAction SilentlyContinue
+$nodeProcesses = Get-Process | Where-Object {$_.ProcessName -like "*node*"} -ErrorAction SilentlyContinue
+
+if ($pythonProcesses -or $nodeProcesses) {
+    Write-Host "Stopping existing servers..." -ForegroundColor Yellow
+    if ($pythonProcesses) {
+        $pythonProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+    if ($nodeProcesses) {
+        $nodeProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 2
+}
+
 # Start Backend in new window
 Write-Host "Starting Backend Server..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-File", "$scriptPath\start-backend.ps1"
