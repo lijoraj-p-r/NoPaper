@@ -23,7 +23,8 @@ function LoginPage() {
           email,
           password,
         });
-        localStorage.setItem("token", res.data.access_token);
+        localStorage.setItem("email", email);
+        localStorage.setItem("password", password);
         localStorage.setItem("role", res.data.role);
         if (res.data.role === "admin") {
           navigate("/admin");
