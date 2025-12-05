@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
+import { useNavigate, Link } from "react-router-dom";
 import { API_URL } from "../config";
 import { useTheme } from "../ThemeContext";
 import { useAuth } from "../AuthContext";
 import PaymentModal from "../components/PaymentModal";
+import Footer from "../components/Footer";
 import "./UserDashboard.css";
 
 function UserDashboard() {
@@ -12,14 +14,12 @@ function UserDashboard() {
   const [paymentModal, setPaymentModal] = useState(null);
   const { isDark, toggleTheme } = useTheme();
   const { auth, logout } = useAuth();
+  const navigate = useNavigate();
+  const isAuthenticated = auth.isAuthenticated;
   const email = auth.email || localStorage.getItem("email");
   const password = localStorage.getItem("password");
 
-  useEffect(() => {
-    fetchBooks();
-  }, []);
-
-  const fetchBooks = async () => {
+  const fetchBooks = useCallback(async () => {
     try {
       const res = await axios.get(`${API_URL}/books`);
       setBooks(res.data);
@@ -28,9 +28,24 @@ function UserDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchBooks();
+  }, [fetchBooks]);
 
   const handleBuy = async (bookId, bookPrice, bookTitle) => {
+    // Check if user is logged in
+    if (!isAuthenticated || !email || !password) {
+      const shouldLogin = window.confirm(
+        "You need to login to purchase books. Would you like to login now?"
+      );
+      if (shouldLogin) {
+        navigate("/login");
+      }
+      return;
+    }
+
     try {
       const response = await axios.post(
         `${API_URL}/buy`,
@@ -83,6 +98,17 @@ function UserDashboard() {
   };
 
   const handleDownload = async (id) => {
+    // Check if user is logged in
+    if (!isAuthenticated || !email || !password) {
+      const shouldLogin = window.confirm(
+        "You need to login to download books. Would you like to login now?"
+      );
+      if (shouldLogin) {
+        navigate("/login");
+      }
+      return;
+    }
+
     try {
       const res = await axios.get(`${API_URL}/books/${id}/download`, {
         headers: {
@@ -103,9 +129,13 @@ function UserDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    window.location.href = "/login";
+  const handleAuthAction = () => {
+    if (isAuthenticated) {
+      logout();
+      navigate("/user", { replace: true });
+    } else {
+      navigate("/login", { replace: true });
+    }
   };
 
   return (
@@ -117,11 +147,21 @@ function UserDashboard() {
       <header className="top-bar">
         <div>
           <h2>📚 NoPaper Books</h2>
-          <p className="user-email">{email}</p>
+          {isAuthenticated && email ? (
+            <p className="user-email">{email}</p>
+          ) : (
+            <p className="user-email">Welcome! Please login to purchase books.</p>
+          )}
         </div>
-        <button className="logout-button" onClick={handleLogout}>
-          Logout
-        </button>
+        <div className="header-actions">
+          <Link to="/about" className="about-link">About Us</Link>
+          <button 
+            className={isAuthenticated ? "logout-button" : "login-button"} 
+            onClick={handleAuthAction}
+          >
+            {isAuthenticated ? "Logout" : "Login"}
+          </button>
+        </div>
       </header>
 
       {loading ? (
@@ -180,6 +220,8 @@ function UserDashboard() {
           onPaymentComplete={handlePaymentComplete}
         />
       )}
+
+      <Footer />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./AuthContext";
 import LoginPage from "./pages/LoginPage";
 import UserDashboard from "./pages/UserDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import AboutUs from "./pages/AboutUs";
 import "./App.css";
 
 function ProtectedRoute({ children, requiredRole }) {
@@ -22,19 +23,11 @@ function ProtectedRoute({ children, requiredRole }) {
 }
 
 function AppRoutes() {
-  const { auth } = useAuth();
-
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/user"
-        element={
-          <ProtectedRoute requiredRole="user">
-            <UserDashboard />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/about" element={<AboutUs />} />
+      <Route path="/user" element={<UserDashboard />} />
       <Route
         path="/admin"
         element={
@@ -43,7 +36,8 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to="/user" replace />} />
+      <Route path="*" element={<Navigate to="/user" replace />} />
     </Routes>
   );
 }

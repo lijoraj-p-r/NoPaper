@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AuthContext = createContext();
 
@@ -19,30 +19,48 @@ export const AuthProvider = ({ children }) => {
     };
   });
 
-  const updateAuth = (email, role) => {
+  const updateAuth = useCallback((email, role) => {
     const newAuth = {
       email: email || null,
       role: role || null,
       isAuthenticated: !!email,
     };
     setAuth(newAuth);
-  };
+    // Also update localStorage
+    if (email) {
+      localStorage.setItem("email", email);
+      if (role) localStorage.setItem("role", role);
+    }
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem("email");
     localStorage.removeItem("password");
     localStorage.removeItem("role");
-    updateAuth(null, null);
-  };
+    setAuth({
+      email: null,
+      role: null,
+      isAuthenticated: false,
+    });
+  }, []);
 
   useEffect(() => {
     // Check for auth changes
     const checkAuth = () => {
       const email = localStorage.getItem("email");
       const role = localStorage.getItem("role");
-      if (email !== auth.email || role !== auth.role) {
-        updateAuth(email, role);
-      }
+      const isAuthenticated = !!email;
+      
+      setAuth(prevAuth => {
+        if (email !== prevAuth.email || role !== prevAuth.role || isAuthenticated !== prevAuth.isAuthenticated) {
+          return {
+            email: email || null,
+            role: role || null,
+            isAuthenticated,
+          };
+        }
+        return prevAuth;
+      });
     };
 
     // Check on storage events (cross-tab)
@@ -55,7 +73,7 @@ export const AuthProvider = ({ children }) => {
       window.removeEventListener("storage", checkAuth);
       clearInterval(interval);
     };
-  }, [auth.email, auth.role]);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ auth, updateAuth, logout }}>

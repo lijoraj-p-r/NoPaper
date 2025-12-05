@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { API_URL } from "../config";
 import { useTheme } from "../ThemeContext";
 import { useAuth } from "../AuthContext";
+import Footer from "../components/Footer";
 import "./LoginPage.css";
 
 function LoginPage() {
@@ -74,7 +75,8 @@ function LoginPage() {
       <button className="theme-toggle" onClick={toggleTheme}>
         {isDark ? '☀️' : '🌙'}
       </button>
-      <div className="login-shell">
+      <div className="login-wrapper">
+        <div className="login-shell">
         <div className="brand-panel">
           <div className="brand-mark">NB</div>
           <h1>NoPaper Books</h1>
@@ -144,6 +146,8 @@ function LoginPage() {
           </form>
         </div>
       </div>
+      </div>
+      <Footer />
     </div>
   );
 }

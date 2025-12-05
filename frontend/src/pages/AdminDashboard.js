@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_URL } from "../config";
 import { useTheme } from "../ThemeContext";
 import { useAuth } from "../AuthContext";
+import Footer from "../components/Footer";
 import "./AdminDashboard.css";
 
 function AdminDashboard() {
@@ -20,8 +22,42 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const { isDark, toggleTheme } = useTheme();
   const { auth, logout } = useAuth();
+  const navigate = useNavigate();
   const email = auth.email || localStorage.getItem("email");
   const password = localStorage.getItem("password");
+
+  const fetchBooks = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_URL}/admin/books`, {
+        headers: { email, password },
+      });
+      setBooks(res.data);
+    } catch (e) {
+      console.error("Failed to fetch books:", e);
+    }
+  }, [email, password]);
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_URL}/admin/orders`, {
+        headers: { email, password },
+      });
+      setOrders(res.data);
+    } catch (e) {
+      console.error("Failed to fetch orders:", e);
+    }
+  }, [email, password]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_URL}/admin/stats`, {
+        headers: { email, password },
+      });
+      setStats(res.data);
+    } catch (e) {
+      console.error("Failed to fetch stats:", e);
+    }
+  }, [email, password]);
 
   useEffect(() => {
     if (activeTab === "books") {
@@ -32,40 +68,7 @@ function AdminDashboard() {
       fetchStats();
       fetchOrders();
     }
-  }, [activeTab]);
-
-  const fetchBooks = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/admin/books`, {
-        headers: { email, password },
-      });
-      setBooks(res.data);
-    } catch (e) {
-      console.error("Failed to fetch books:", e);
-    }
-  };
-
-  const fetchOrders = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/admin/orders`, {
-        headers: { email, password },
-      });
-      setOrders(res.data);
-    } catch (e) {
-      console.error("Failed to fetch orders:", e);
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/admin/stats`, {
-        headers: { email, password },
-      });
-      setStats(res.data);
-    } catch (e) {
-      console.error("Failed to fetch stats:", e);
-    }
-  };
+  }, [activeTab, fetchBooks, fetchOrders, fetchStats]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -117,7 +120,8 @@ function AdminDashboard() {
       <button className="theme-toggle" onClick={toggleTheme}>
         {isDark ? '☀️' : '🌙'}
       </button>
-      <div className="admin-sidebar">
+      <div className="admin-wrapper">
+        <div className="admin-sidebar">
         <div className="sidebar-header">
           <h2>📚 NoPaper</h2>
           <p>Admin Panel</p>
@@ -153,16 +157,16 @@ function AdminDashboard() {
           <button
             onClick={() => {
               logout();
-              window.location.href = "/login";
+              navigate("/login", { replace: true });
             }}
             className="logout-btn"
           >
             Logout
           </button>
         </div>
-      </div>
+        </div>
 
-      <div className="admin-content">
+        <div className="admin-content">
         {activeTab === "dashboard" && (
           <div className="dashboard-tab">
             <h1>Dashboard Overview</h1>
@@ -364,7 +368,9 @@ function AdminDashboard() {
             </div>
           </div>
         )}
+        </div>
       </div>
+      <Footer />
     </div>
   );
 }
