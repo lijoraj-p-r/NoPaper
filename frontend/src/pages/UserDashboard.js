@@ -1,20 +1,35 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
+import { useTheme } from "../ThemeContext";
+import PaymentModal from "../components/PaymentModal";
 import "./UserDashboard.css";
 
 function UserDashboard() {
   const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [paymentModal, setPaymentModal] = useState(null);
+  const { isDark, toggleTheme } = useTheme();
   const email = localStorage.getItem("email");
   const password = localStorage.getItem("password");
 
   useEffect(() => {
-    axios.get(`${API_URL}/books`).then((res) => setBooks(res.data));
+    fetchBooks();
   }, []);
+
+  const fetchBooks = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/books`);
+      setBooks(res.data);
+    } catch (e) {
+      console.error("Failed to fetch books:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleBuy = async (bookId, bookPrice, bookTitle) => {
     try {
-      // Create order and get UPI payment URL
       const response = await axios.post(
         `${API_URL}/buy`,
         { book_id: bookId },
@@ -27,40 +42,26 @@ function UserDashboard() {
       );
 
       const { upi_url, upi_id, order_id, amount } = response.data;
-
-      // Show payment confirmation
-      const confirmed = window.confirm(
-        `Pay ₹${amount} to ${upi_id}?\n\nOrder ID: ${order_id}\nBook: ${bookTitle}\n\nClick OK to open UPI payment.`
-      );
-
-      if (confirmed) {
-        // Open UPI payment
-        window.open(upi_url, '_blank');
-        
-        // Wait a bit then ask for payment confirmation
-        setTimeout(() => {
-          const paymentStatus = window.confirm(
-            `Did you complete the payment?\n\nOrder ID: ${order_id}\nAmount: ₹${amount}\n\nClick OK if payment was successful.`
-          );
-
-          if (paymentStatus) {
-            // Verify payment
-            verifyPayment(order_id);
-          } else {
-            alert("Payment cancelled. Order is pending.");
-          }
-        }, 2000);
-      }
+      
+      setPaymentModal({
+        orderId: order_id,
+        amount: amount,
+        upiId: upi_id,
+        upiUrl: upi_url,
+        bookTitle: bookTitle,
+      });
     } catch (e) {
       const errorMsg = e.response?.data?.detail || "Purchase failed";
       alert(`Error: ${errorMsg}`);
     }
   };
 
-  const verifyPayment = async (orderId) => {
+  const handlePaymentComplete = async () => {
+    if (!paymentModal) return;
+    
     try {
       const response = await axios.post(
-        `${API_URL}/payment/verify?order_id=${orderId}&status=success`,
+        `${API_URL}/payment/verify?order_id=${paymentModal.orderId}&status=success`,
         {},
         {
           headers: {
@@ -71,9 +72,8 @@ function UserDashboard() {
       );
 
       if (response.data.status === "paid") {
-        alert(`Payment successful!\nOrder ID: ${orderId}\nYou can now download the book.`);
-        // Refresh books list
-        window.location.reload();
+        alert(`Payment successful! Order #${paymentModal.orderId}\nYou can now download the book.`);
+        fetchBooks();
       }
     } catch (e) {
       alert("Payment verification failed. Please contact support.");
@@ -97,33 +97,89 @@ function UserDashboard() {
       link.click();
       link.remove();
     } catch (e) {
-      alert(e.response?.data?.detail || "Download not allowed");
+      alert(e.response?.data?.detail || "Download not allowed. Please purchase the book first.");
     }
   };
 
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = "/login";
+  };
+
   return (
-    <div className="user-page">
+    <div className={`user-page ${isDark ? 'dark' : ''}`}>
+      <button className="theme-toggle" onClick={toggleTheme}>
+        {isDark ? '☀️' : '🌙'}
+      </button>
+      
       <header className="top-bar">
-        <h2>Book Store - User</h2>
+        <div>
+          <h2>📚 NoPaper Books</h2>
+          <p className="user-email">{email}</p>
+        </div>
+        <button className="logout-button" onClick={handleLogout}>
+          Logout
+        </button>
       </header>
-      <div className="book-grid">
-        {books.map((b) => (
-          <div key={b.id} className="book-card">
-            <h3>{b.title}</h3>
-            <p className="author">{b.author}</p>
-            <p className="description">{b.description}</p>
-            <p className="price">${b.price}</p>
-            <div className="actions">
-              <button onClick={() => handleBuy(b.id, b.price, b.title)}>Buy</button>
-              <button onClick={() => handleDownload(b.id)}>Download</button>
+
+      {loading ? (
+        <div className="loading-container">
+          <div className="loader"></div>
+          <p>Loading books...</p>
+        </div>
+      ) : books.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">📖</div>
+          <h3>No books available</h3>
+          <p>Check back later for new books!</p>
+        </div>
+      ) : (
+        <div className="book-grid">
+          {books.map((b) => (
+            <div key={b.id} className="book-card">
+              <div className="book-header">
+                <h3>{b.title}</h3>
+                <p className="author">by {b.author}</p>
+              </div>
+              {b.description && (
+                <p className="description">{b.description}</p>
+              )}
+              <div className="book-footer">
+                <span className="price">₹{b.price}</span>
+                <div className="actions">
+                  <button 
+                    className="btn-buy" 
+                    onClick={() => handleBuy(b.id, b.price, b.title)}
+                  >
+                    Buy Now
+                  </button>
+                  <button 
+                    className="btn-download" 
+                    onClick={() => handleDownload(b.id)}
+                  >
+                    Download
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {paymentModal && (
+        <PaymentModal
+          isOpen={!!paymentModal}
+          onClose={() => setPaymentModal(null)}
+          orderId={paymentModal.orderId}
+          amount={paymentModal.amount}
+          upiId={paymentModal.upiId}
+          upiUrl={paymentModal.upiUrl}
+          bookTitle={paymentModal.bookTitle}
+          onPaymentComplete={handlePaymentComplete}
+        />
+      )}
     </div>
   );
 }
 
 export default UserDashboard;
-
-

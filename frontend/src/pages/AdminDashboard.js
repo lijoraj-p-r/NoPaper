@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
+import { useTheme } from "../ThemeContext";
 import "./AdminDashboard.css";
 
 function AdminDashboard() {
@@ -16,6 +17,7 @@ function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
   const email = localStorage.getItem("email");
   const password = localStorage.getItem("password");
 
@@ -109,7 +111,10 @@ function AdminDashboard() {
   };
 
   return (
-    <div className="admin-page">
+    <div className={`admin-page ${isDark ? 'dark' : ''}`}>
+      <button className="theme-toggle" onClick={toggleTheme}>
+        {isDark ? '☀️' : '🌙'}
+      </button>
       <div className="admin-sidebar">
         <div className="sidebar-header">
           <h2>📚 NoPaper</h2>

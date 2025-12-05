@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../config";
+import { useTheme } from "../ThemeContext";
 import "./LoginPage.css";
 
 function LoginPage() {
@@ -11,6 +12,7 @@ function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -61,7 +63,10 @@ function LoginPage() {
   };
 
   return (
-    <div className="login-container">
+    <div className={`login-container ${isDark ? 'dark' : ''}`}>
+      <button className="theme-toggle" onClick={toggleTheme}>
+        {isDark ? '☀️' : '🌙'}
+      </button>
       <div className="login-shell">
         <div className="brand-panel">
           <div className="brand-mark">NB</div>
