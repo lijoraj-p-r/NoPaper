@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Test script to check registration endpoint"""
-import requests
+import requests  # pyright: ignore[reportMissingModuleSource]  # pyright: ignore[reportMissingModuleSource]
 import json
 
 # Test registration

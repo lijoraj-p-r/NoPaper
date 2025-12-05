@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
 import { useTheme } from "../ThemeContext";
+import { useAuth } from "../AuthContext";
 import "./AdminDashboard.css";
 
 function AdminDashboard() {
@@ -18,7 +19,8 @@ function AdminDashboard() {
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(false);
   const { isDark, toggleTheme } = useTheme();
-  const email = localStorage.getItem("email");
+  const { auth, logout } = useAuth();
+  const email = auth.email || localStorage.getItem("email");
   const password = localStorage.getItem("password");
 
   useEffect(() => {
@@ -150,7 +152,7 @@ function AdminDashboard() {
           <p>Logged in as: {email}</p>
           <button
             onClick={() => {
-              localStorage.clear();
+              logout();
               window.location.href = "/login";
             }}
             className="logout-btn"

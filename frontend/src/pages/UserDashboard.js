@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
 import { useTheme } from "../ThemeContext";
+import { useAuth } from "../AuthContext";
 import PaymentModal from "../components/PaymentModal";
 import "./UserDashboard.css";
 
@@ -10,7 +11,8 @@ function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [paymentModal, setPaymentModal] = useState(null);
   const { isDark, toggleTheme } = useTheme();
-  const email = localStorage.getItem("email");
+  const { auth, logout } = useAuth();
+  const email = auth.email || localStorage.getItem("email");
   const password = localStorage.getItem("password");
 
   useEffect(() => {
@@ -102,7 +104,7 @@ function UserDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    logout();
     window.location.href = "/login";
   };
 

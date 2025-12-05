@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { API_URL } from "../config";
 import { useTheme } from "../ThemeContext";
+import { useAuth } from "../AuthContext";
 import "./LoginPage.css";
 
 function LoginPage() {
@@ -13,6 +14,7 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { isDark, toggleTheme } = useTheme();
+  const { updateAuth } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -29,17 +31,15 @@ function LoginPage() {
         localStorage.setItem("password", password);
         localStorage.setItem("role", res.data.role);
         
-        // Trigger storage event for App.js to update
-        window.dispatchEvent(new Event("storage"));
+        // Update auth context
+        updateAuth(email, res.data.role);
         
-        // Small delay to ensure state updates
-        setTimeout(() => {
-          if (res.data.role === "admin") {
-            navigate("/admin", { replace: true });
-          } else {
-            navigate("/user", { replace: true });
-          }
-        }, 100);
+        // Navigate immediately
+        if (res.data.role === "admin") {
+          navigate("/admin", { replace: true });
+        } else {
+          navigate("/user", { replace: true });
+        }
       } else {
         // signup
         await axios.post(`${API_URL}/register`, {
