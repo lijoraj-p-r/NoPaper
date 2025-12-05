@@ -5,7 +5,12 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
+try:
+    from pydantic import field_validator
+except ImportError:
+    # Fallback for older Pydantic versions
+    from pydantic import validator as field_validator
 from typing import List, Optional
 import os
 
@@ -52,12 +57,30 @@ class Token(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=7, max_length=72, description="Password must be between 7 and 72 characters")
+    
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if len(v) < 7:
+            raise ValueError('Password must be at least 7 characters long')
+        # Bcrypt has a 72-byte limit, check byte length
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError('Password cannot be longer than 72 bytes')
+        return v
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., max_length=72, description="Password cannot be longer than 72 bytes")
+    
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        # Bcrypt has a 72-byte limit, check byte length
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError('Password cannot be longer than 72 bytes')
+        return v
 
 
 class BookOut(BaseModel):
@@ -76,10 +99,16 @@ class BuyRequest(BaseModel):
 
 
 def get_password_hash(password: str) -> str:
+    # Bcrypt has a 72 byte limit, truncate if necessary
+    if len(password.encode('utf-8')) > 72:
+        password = password[:72]
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # Bcrypt has a 72 byte limit, truncate if necessary
+    if len(plain_password.encode('utf-8')) > 72:
+        plain_password = plain_password[:72]
     return pwd_context.verify(plain_password, hashed_password)
 
 
@@ -143,11 +172,19 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/login", response_model=Token)
 def login(login_req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == login_req.email).first()
-    if not user or not verify_password(login_req.password, user.password_hash):
-        raise HTTPException(status_code=400, detail="Incorrect email or password")
-    access_token = create_access_token({"sub": user.id, "role": user.role})
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role}
+    try:
+        user = db.query(User).filter(User.email == login_req.email).first()
+        if not user or not verify_password(login_req.password, user.password_hash):
+            raise HTTPException(status_code=400, detail="Incorrect email or password")
+        access_token = create_access_token({"sub": user.id, "role": user.role})
+        return {"access_token": access_token, "token_type": "bearer", "role": user.role}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed: {str(e)}"
+        )
 
 
 @app.get("/books", response_model=List[BookOut])
