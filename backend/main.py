@@ -2,8 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, H
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from jose import jwt, JWTError
-from datetime import datetime, timedelta
+from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 try:
     from pydantic import field_validator
@@ -26,9 +25,7 @@ from models import Base, User, Book, Order, OrderItem
 
 Base.metadata.create_all(bind=engine)
 
-SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME_TO_A_RANDOM_SECRET")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+# Simple authentication - no JWT tokens needed
 
 # Password encryption removed - storing passwords as plain text
 
@@ -48,9 +45,8 @@ app.add_middleware(
 )
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
+class AuthResponse(BaseModel):
+    message: str
     role: str
 
 
@@ -96,72 +92,83 @@ def verify_password(plain_password: str, stored_password: str) -> bool:
     return plain_password == stored_password
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
 def get_current_user(
-    authorization: Optional[str] = Header(None),
+    email: str = Header(..., description="User email"),
+    password: str = Header(..., description="User password"),
     db: Session = Depends(get_db),
 ):
-    if not authorization or not authorization.startswith("Bearer "):
+    """Simple authentication using email and password from headers"""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            detail="Invalid email or password",
         )
-    token = authorization.split(" ", 1)[1]
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+    if not verify_password(password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+    return user
 
-    user = db.query(User).filter(User.id == user_id).first()
+
+def require_admin(
+    email: str = Header(..., description="Admin email"),
+    password: str = Header(..., description="Admin password"),
+    db: Session = Depends(get_db),
+):
+    """Require admin role - simple authentication"""
+    user = db.query(User).filter(User.email == email).first()
     if not user:
-        raise credentials_exception
-    return user
-
-
-def require_admin(user: User = Depends(get_current_user)):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+    if not verify_password(password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
     if user.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins only")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
     return user
 
 
-@app.post("/register", response_model=Token)
+@app.post("/register", response_model=AuthResponse)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == user_in.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    user = User(
-        email=user_in.email,
-        password_hash=get_password_hash(user_in.password),
-        role="user",
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    access_token = create_access_token({"sub": user.id, "role": user.role})
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role}
+    try:
+        existing = db.query(User).filter(User.email == user_in.email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        user = User(
+            email=user_in.email,
+            password_hash=get_password_hash(user_in.password),
+            role="user",
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return {"message": "Registration successful", "role": user.role}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
 
 
-@app.post("/login", response_model=Token)
+@app.post("/login", response_model=AuthResponse)
 def login(login_req: LoginRequest, db: Session = Depends(get_db)):
     try:
         user = db.query(User).filter(User.email == login_req.email).first()
         if not user or not verify_password(login_req.password, user.password_hash):
             raise HTTPException(status_code=400, detail="Incorrect email or password")
-        access_token = create_access_token({"sub": user.id, "role": user.role})
-        return {"access_token": access_token, "token_type": "bearer", "role": user.role}
+        return {"message": "Login successful", "role": user.role}
     except HTTPException:
         raise
     except Exception as e:
@@ -176,13 +183,14 @@ def list_books(db: Session = Depends(get_db)):
     return db.query(Book).all()
 
 
-@app.post("/admin/books", dependencies=[Depends(require_admin)])
+@app.post("/admin/books")
 async def upload_book(
     title: str,
     author: str,
     price: float,
     description: Optional[str] = None,
     pdf: UploadFile = File(...),
+    admin_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     if not pdf.filename.lower().endswith(".pdf"):
