@@ -379,6 +379,87 @@ def download_book(
     )
 
 
+@app.get("/admin/orders")
+def get_all_orders(
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Get all orders with user and book details"""
+    orders = db.query(Order).order_by(Order.created_at.desc()).all()
+    result = []
+    for order in orders:
+        user = db.query(User).filter(User.id == order.user_id).first()
+        order_items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+        books = []
+        for item in order_items:
+            book = db.query(Book).filter(Book.id == item.book_id).first()
+            if book:
+                books.append({
+                    "id": book.id,
+                    "title": book.title,
+                    "author": book.author,
+                    "price": float(item.price_each),
+                })
+        result.append({
+            "order_id": order.id,
+            "user_email": user.email if user else "Unknown",
+            "user_id": user.id if user else None,
+            "total": float(order.total),
+            "status": order.status,
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "books": books,
+        })
+    return result
+
+
+@app.get("/admin/books")
+def get_all_books_admin(
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Get all books with purchase statistics"""
+    books = db.query(Book).all()
+    result = []
+    for book in books:
+        # Count purchases
+        purchase_count = (
+            db.query(OrderItem)
+            .join(Order, OrderItem.order_id == Order.id)
+            .filter(OrderItem.book_id == book.id, Order.status == "paid")
+            .count()
+        )
+        result.append({
+            "id": book.id,
+            "title": book.title,
+            "author": book.author,
+            "price": float(book.price),
+            "description": book.description,
+            "purchase_count": purchase_count,
+            "created_at": book.created_at.isoformat() if book.created_at else None,
+        })
+    return result
+
+
+@app.get("/admin/stats")
+def get_admin_stats(
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Get admin dashboard statistics"""
+    total_books = db.query(Book).count()
+    total_users = db.query(User).filter(User.role == "user").count()
+    total_orders = db.query(Order).filter(Order.status == "paid").count()
+    total_revenue = db.query(Order).filter(Order.status == "paid").all()
+    revenue = sum(float(order.total) for order in total_revenue)
+    
+    return {
+        "total_books": total_books,
+        "total_users": total_users,
+        "total_orders": total_orders,
+        "total_revenue": revenue,
+    }
+
+
 @app.get("/")
 def root():
     return {"message": "Online Book Shop API running"}

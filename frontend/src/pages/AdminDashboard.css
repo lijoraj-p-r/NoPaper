@@ -1,45 +1,407 @@
 .admin-page {
+  display: flex;
   min-height: 100vh;
-  background: #f4f5fb;
+  background: #f5f7fa;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-.top-bar {
-  background: #1a202c;
+/* Sidebar */
+.admin-sidebar {
+  width: 260px;
+  background: linear-gradient(180deg, #1a202c 0%, #2d3748 100%);
   color: white;
-  padding: 1rem 2rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  padding: 2rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.sidebar-header p {
+  margin: 0.5rem 0 0 0;
+  color: #a0aec0;
+  font-size: 0.9rem;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 1rem 0;
+}
+
+.sidebar-nav button {
+  width: 100%;
+  padding: 1rem 1.5rem;
+  background: none;
+  border: none;
+  color: #cbd5e0;
+  text-align: left;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
+}
+
+.sidebar-nav button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.sidebar-nav button.active {
+  background: rgba(66, 153, 225, 0.2);
+  color: white;
+  border-left-color: #4299e1;
+  font-weight: 600;
+}
+
+.sidebar-footer {
+  padding: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.85rem;
+}
+
+.sidebar-footer p {
+  margin: 0 0 0.75rem 0;
+  color: #a0aec0;
+  word-break: break-all;
+}
+
+.logout-btn {
+  width: 100%;
+  padding: 0.6rem;
+  background: #e53e3e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.logout-btn:hover {
+  background: #c53030;
+}
+
+/* Main Content */
+.admin-content {
+  flex: 1;
+  margin-left: 260px;
+  padding: 2rem;
+  max-width: calc(100% - 260px);
+}
+
+.admin-content h1 {
+  margin: 0 0 2rem 0;
+  color: #2d3748;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+/* Dashboard Tab */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: transform 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.stat-icon {
+  font-size: 2.5rem;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #edf2f7;
+  border-radius: 10px;
+}
+
+.stat-info h3 {
+  margin: 0;
+  font-size: 1.75rem;
+  color: #2d3748;
+  font-weight: 700;
+}
+
+.stat-info p {
+  margin: 0.25rem 0 0 0;
+  color: #718096;
+  font-size: 0.9rem;
+}
+
+.recent-orders {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.recent-orders h2 {
+  margin: 0 0 1rem 0;
+  color: #2d3748;
+  font-size: 1.5rem;
+}
+
+/* Add Book Tab */
+.add-book-tab {
+  max-width: 600px;
 }
 
 .admin-form {
-  margin: 2rem auto;
-  max-width: 480px;
   background: white;
-  padding: 1.5rem 1.75rem;
+  padding: 2rem;
   border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #4a5568;
+  font-weight: 500;
+  font-size: 0.95rem;
 }
 
 .admin-form input,
 .admin-form textarea {
-  padding: 0.6rem 0.8rem;
-  border-radius: 8px;
+  width: 100%;
+  padding: 0.75rem;
   border: 1px solid #e2e8f0;
-  font-size: 0.95rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.admin-form input:focus,
+.admin-form textarea:focus {
+  outline: none;
+  border-color: #4299e1;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+
+.admin-form textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.file-name {
+  margin-top: 0.5rem;
+  color: #4299e1;
+  font-size: 0.9rem;
 }
 
 .admin-form button {
-  margin-top: 0.5rem;
-  padding: 0.7rem 1rem;
-  border-radius: 8px;
-  border: none;
-  background: #3182ce;
+  width: 100%;
+  padding: 0.875rem;
+  background: #4299e1;
   color: white;
-  font-size: 0.95rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
+.admin-form button:hover:not(:disabled) {
+  background: #3182ce;
+}
 
+.admin-form button:disabled {
+  background: #a0aec0;
+  cursor: not-allowed;
+}
+
+/* Books Tab */
+.books-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.book-card-admin {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s;
+}
+
+.book-card-admin:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.book-card-admin h3 {
+  margin: 0 0 0.5rem 0;
+  color: #2d3748;
+  font-size: 1.25rem;
+}
+
+.book-card-admin .author {
+  color: #718096;
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+.book-card-admin .description {
+  color: #4a5568;
+  margin: 0 0 1rem 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.book-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.book-footer .price {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #4299e1;
+}
+
+.book-footer .purchases {
+  color: #718096;
+  font-size: 0.9rem;
+}
+
+/* Orders Tab */
+.orders-table {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow-x: auto;
+}
+
+.orders-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.orders-table th {
+  text-align: left;
+  padding: 1rem;
+  background: #f7fafc;
+  color: #4a5568;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.orders-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #2d3748;
+}
+
+.orders-table tr:hover {
+  background: #f7fafc;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.paid {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.status-badge.pending {
+  background: #feebc8;
+  color: #7c2d12;
+}
+
+.status-badge.failed {
+  background: #fed7d7;
+  color: #742a2a;
+}
+
+.books-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.book-tag {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #edf2f7;
+  color: #4a5568;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.no-data {
+  text-align: center;
+  padding: 3rem;
+  color: #718096;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .admin-sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+  }
+
+  .admin-content {
+    margin-left: 0;
+    max-width: 100%;
+    padding: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .orders-table {
+    overflow-x: scroll;
+  }
+}
