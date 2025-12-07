@@ -14,12 +14,14 @@ function AdminDashboard() {
     author: "",
     price: "",
     description: "",
+    pdf_url: "",
+    cover_url: "",
   });
-  const [pdf, setPdf] = useState(null);
   const [books, setBooks] = useState([]);
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(false);
+  const [expandedDescriptions, setExpandedDescriptions] = useState(new Set());
   const { isDark, toggleTheme } = useTheme();
   const { auth, logout } = useAuth();
   const navigate = useNavigate();
@@ -76,34 +78,38 @@ function AdminDashboard() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!pdf) {
-      alert("Please select a PDF file");
+    if (!form.pdf_url) {
+      alert("Please enter a PDF URL");
+      return;
+    }
+    if (!form.pdf_url.startsWith("http://") && !form.pdf_url.startsWith("https://")) {
+      alert("Please enter a valid URL (must start with http:// or https://)");
       return;
     }
     setLoading(true);
-    const data = new FormData();
-    data.append("title", form.title);
-    data.append("author", form.author);
-    data.append("price", form.price);
-    data.append("description", form.description);
-    data.append("pdf", pdf);
 
     try {
-      await axios.post(`${API_URL}/admin/books`, data, {
+      await axios.post(`${API_URL}/admin/books`, {
+        title: form.title,
+        author: form.author,
+        price: parseFloat(form.price),
+        description: form.description || null,
+        pdf_url: form.pdf_url,
+        cover_url: form.cover_url || null,
+      }, {
         headers: {
           email,
           password,
-          "Content-Type": "multipart/form-data",
+          "Content-Type": "application/json",
         },
       });
-      alert("Book uploaded successfully!");
-      setForm({ title: "", author: "", price: "", description: "" });
-      setPdf(null);
+      alert("Book added successfully!");
+      setForm({ title: "", author: "", price: "", description: "", pdf_url: "", cover_url: "" });
       if (activeTab === "books") {
         fetchBooks();
       }
     } catch (e) {
-      alert(e.response?.data?.detail || "Upload failed");
+      alert(e.response?.data?.detail || "Failed to add book");
     } finally {
       setLoading(false);
     }
@@ -115,6 +121,52 @@ function AdminDashboard() {
     return date.toLocaleString();
   };
 
+  const toggleDescription = (bookId) => {
+    setExpandedDescriptions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(bookId)) {
+        newSet.delete(bookId);
+      } else {
+        newSet.add(bookId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleDeleteBook = async (bookId, bookTitle, purchaseCount = 0) => {
+    let confirmMessage = `Are you sure you want to delete "${bookTitle}"?\n\nThis action cannot be undone.`;
+    
+    if (purchaseCount > 0) {
+      confirmMessage += `\n\nNote: This book has been purchased ${purchaseCount} time(s), but users have already downloaded it, so deletion is safe.`;
+    }
+    
+    const confirmDelete = window.confirm(confirmMessage);
+    
+    if (!confirmDelete) return;
+
+    try {
+      const response = await axios.delete(`${API_URL}/admin/books/${bookId}`, {
+        headers: {
+          email,
+          password,
+        },
+      });
+      
+      if (response.data && response.data.message) {
+        alert(response.data.message);
+      } else {
+        alert("Book deleted successfully!");
+      }
+      
+      // Refresh the books list
+      await fetchBooks();
+    } catch (e) {
+      const errorMessage = e.response?.data?.detail || e.message || "Failed to delete book";
+      console.error("Delete book error:", e);
+      alert(`Error: ${errorMessage}`);
+    }
+  };
+
   return (
     <div className={`admin-page ${isDark ? 'dark' : ''}`}>
       <button className="theme-toggle" onClick={toggleTheme}>
@@ -123,7 +175,10 @@ function AdminDashboard() {
       <div className="admin-wrapper">
         <div className="admin-sidebar">
         <div className="sidebar-header">
-          <h2>📚 NoPaper</h2>
+          <div className="sidebar-logo">
+            <img src="/favicon.ico" alt="NoPaper Logo" className="logo-icon" />
+            <h2>📚 NoPaper</h2>
+          </div>
           <p>Admin Panel</p>
         </div>
         <nav className="sidebar-nav">
@@ -285,17 +340,35 @@ function AdminDashboard() {
                 />
               </div>
               <div className="form-group">
-                <label>PDF File *</label>
+                <label>PDF URL *</label>
                 <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => setPdf(e.target.files[0])}
+                  name="pdf_url"
+                  type="url"
+                  placeholder="https://example.com/book.pdf"
+                  value={form.pdf_url}
+                  onChange={handleChange}
                   required
                 />
-                {pdf && <p className="file-name">Selected: {pdf.name}</p>}
+                <p className="help-text">Enter the direct URL to the PDF file</p>
+              </div>
+              <div className="form-group">
+                <label>Cover Image URL (Optional)</label>
+                <input
+                  name="cover_url"
+                  type="url"
+                  placeholder="https://example.com/cover.jpg or paste image URL here"
+                  value={form.cover_url}
+                  onChange={handleChange}
+                />
+                <p className="help-text">Enter or paste the URL to the book cover image</p>
+                {form.cover_url && (
+                  <div className="cover-preview">
+                    <img src={form.cover_url} alt="Cover preview" onError={(e) => { e.target.style.display = 'none'; }} />
+                  </div>
+                )}
               </div>
               <button type="submit" disabled={loading}>
-                {loading ? "Uploading..." : "Upload Book"}
+                {loading ? "Adding..." : "Add Book"}
               </button>
             </form>
           </div>
@@ -307,9 +380,39 @@ function AdminDashboard() {
             <div className="books-grid">
               {books.map((book) => (
                 <div key={book.id} className="book-card-admin">
-                  <h3>{book.title}</h3>
-                  <p className="author">by {book.author}</p>
-                  <p className="description">{book.description}</p>
+                  {book.cover_url && (
+                    <div className="book-cover-admin">
+                      <img src={book.cover_url} alt={`${book.title} cover`} onError={(e) => { e.target.style.display = 'none'; }} />
+                    </div>
+                  )}
+                  <div className="book-header-admin">
+                    <div>
+                      <h3>{book.title}</h3>
+                      <p className="author">by {book.author}</p>
+                    </div>
+                    <button
+                      className="delete-book-btn"
+                      onClick={() => handleDeleteBook(book.id, book.title, book.purchase_count || 0)}
+                      title="Delete book (safe even if purchased - users have downloaded it)"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                  {book.description && (
+                    <div className="description-wrapper">
+                      <p className={`description ${expandedDescriptions.has(book.id) ? 'expanded' : ''}`}>
+                        {book.description}
+                      </p>
+                      {book.description && book.description.length > 100 && (
+                        <button
+                          className="read-more-btn"
+                          onClick={() => toggleDescription(book.id)}
+                        >
+                          {expandedDescriptions.has(book.id) ? 'Read less' : 'Read more'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <div className="book-footer">
                     <span className="price">₹{book.price}</span>
                     <span className="purchases">

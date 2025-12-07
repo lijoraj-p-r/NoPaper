@@ -12,6 +12,7 @@ function UserDashboard() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [paymentModal, setPaymentModal] = useState(null);
+  const [expandedDescriptions, setExpandedDescriptions] = useState(new Set());
   const { isDark, toggleTheme } = useTheme();
   const { auth, logout } = useAuth();
   const navigate = useNavigate();
@@ -21,14 +22,19 @@ function UserDashboard() {
 
   const fetchBooks = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_URL}/books`);
+      const headers = {};
+      if (isAuthenticated && email && password) {
+        headers.email = email;
+        headers.password = password;
+      }
+      const res = await axios.get(`${API_URL}/books`, { headers });
       setBooks(res.data);
     } catch (e) {
       console.error("Failed to fetch books:", e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated, email, password]);
 
   useEffect(() => {
     fetchBooks();
@@ -90,14 +96,16 @@ function UserDashboard() {
 
       if (response.data.status === "paid") {
         alert(`Payment successful! Order #${paymentModal.orderId}\nYou can now download the book.`);
-        fetchBooks();
+        setPaymentModal(null);
+        // Refresh books to show purchased status
+        await fetchBooks();
       }
     } catch (e) {
       alert("Payment verification failed. Please contact support.");
     }
   };
 
-  const handleDownload = async (id) => {
+  const handleDownload = async (bookId, pdfUrl, isPurchased) => {
     // Check if user is logged in
     if (!isAuthenticated || !email || !password) {
       const shouldLogin = window.confirm(
@@ -109,23 +117,38 @@ function UserDashboard() {
       return;
     }
 
-    try {
-      const res = await axios.get(`${API_URL}/books/${id}/download`, {
-        headers: {
-          email: email,
-          password: password,
-        },
-        responseType: "blob",
-      });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "book.pdf");
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (e) {
-      alert(e.response?.data?.detail || "Download not allowed. Please purchase the book first.");
+    // If not purchased, show error
+    if (!isPurchased) {
+      alert("Please purchase this book first to download it.");
+      return;
+    }
+
+    // If purchased, use the PDF URL directly or call the download endpoint
+    if (pdfUrl) {
+      // Direct URL - open in new tab
+      window.open(pdfUrl, "_blank");
+    } else {
+      // Fallback: use the download endpoint which redirects to the URL
+      try {
+        // Use fetch to follow redirects
+        const response = await fetch(`${API_URL}/books/${bookId}/download`, {
+          method: 'GET',
+          headers: {
+            email: email,
+            password: password,
+          },
+          redirect: 'follow',
+        });
+        
+        if (response.ok) {
+          // Get the final URL after redirect
+          window.open(response.url, "_blank");
+        } else {
+          throw new Error('Download failed');
+        }
+      } catch (e) {
+        alert("Failed to get download link. Please try again.");
+      }
     }
   };
 
@@ -138,6 +161,18 @@ function UserDashboard() {
     }
   };
 
+  const toggleDescription = (bookId) => {
+    setExpandedDescriptions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(bookId)) {
+        newSet.delete(bookId);
+      } else {
+        newSet.add(bookId);
+      }
+      return newSet;
+    });
+  };
+
   return (
     <div className={`user-page ${isDark ? 'dark' : ''}`}>
       <button className="theme-toggle" onClick={toggleTheme}>
@@ -145,13 +180,16 @@ function UserDashboard() {
       </button>
       
       <header className="top-bar">
-        <div>
-          <h2>📚 NoPaper Books</h2>
-          {isAuthenticated && email ? (
-            <p className="user-email">{email}</p>
-          ) : (
-            <p className="user-email">Welcome! Please login to purchase books.</p>
-          )}
+        <div className="header-brand">
+          <img src="/favicon.ico" alt="NoPaper Logo" className="logo-icon" />
+          <div>
+            <h2>📚 NoPaper Books</h2>
+            {isAuthenticated && email ? (
+              <p className="user-email">{email}</p>
+            ) : (
+              <p className="user-email">Welcome! Please login to purchase books.</p>
+            )}
+          </div>
         </div>
         <div className="header-actions">
           <Link to="/about" className="about-link">About Us</Link>
@@ -178,28 +216,63 @@ function UserDashboard() {
       ) : (
         <div className="book-grid">
           {books.map((b) => (
-            <div key={b.id} className="book-card">
+            <div key={b.id} className={`book-card ${b.is_purchased ? 'purchased' : ''}`}>
+              {b.cover_url && (
+                <div className="book-cover">
+                  <img src={b.cover_url} alt={`${b.title} cover`} onError={(e) => { e.target.style.display = 'none'; }} />
+                </div>
+              )}
               <div className="book-header">
-                <h3>{b.title}</h3>
-                <p className="author">by {b.author}</p>
+                <div>
+                  <h3>{b.title}</h3>
+                  <p className="author">by {b.author}</p>
+                </div>
+                {b.is_purchased && (
+                  <span className="purchased-badge" title="You own this book">
+                    ✓ Purchased
+                  </span>
+                )}
               </div>
               {b.description && (
-                <p className="description">{b.description}</p>
+                <div className="description-wrapper">
+                  <p className={`description ${expandedDescriptions.has(b.id) ? 'expanded' : ''}`}>
+                    {b.description}
+                  </p>
+                  {b.description.length > 100 && (
+                    <button
+                      className="read-more-btn"
+                      onClick={() => toggleDescription(b.id)}
+                    >
+                      {expandedDescriptions.has(b.id) ? 'Read less' : 'Read more'}
+                    </button>
+                  )}
+                </div>
               )}
               <div className="book-footer">
                 <span className="price">₹{b.price}</span>
                 <div className="actions">
+                  {b.is_purchased ? (
+                    <button 
+                      className="btn-purchased" 
+                      disabled
+                    >
+                      ✓ Owned
+                    </button>
+                  ) : (
+                    <button 
+                      className="btn-buy" 
+                      onClick={() => handleBuy(b.id, b.price, b.title)}
+                    >
+                      Buy Now
+                    </button>
+                  )}
                   <button 
-                    className="btn-buy" 
-                    onClick={() => handleBuy(b.id, b.price, b.title)}
+                    className={`btn-download ${b.is_purchased ? 'btn-download-active' : ''}`}
+                    onClick={() => handleDownload(b.id, b.pdf_url, b.is_purchased)}
+                    disabled={!b.is_purchased}
+                    title={b.is_purchased ? "Click to download" : "Purchase to download"}
                   >
-                    Buy Now
-                  </button>
-                  <button 
-                    className="btn-download" 
-                    onClick={() => handleDownload(b.id)}
-                  >
-                    Download
+                    {b.is_purchased ? "📥 Download" : "Download"}
                   </button>
                 </div>
               </div>
