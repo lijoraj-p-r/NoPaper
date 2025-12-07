@@ -1,7 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Header
+from fastapi import FastAPI, Depends, HTTPException, status, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from datetime import datetime
 import smtplib
 from email.mime.text import MIMEText
@@ -40,8 +41,7 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")  # Set via environment variable
 ADMIN_EMAIL = "lijorajpr321@gmail.com"
 UPI_ID = "lijorajpr321@okaxis"
 
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads", "pdfs")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# File upload removed - using URLs instead
 
 app = FastAPI(title="Online Book Shop API")
 
@@ -189,42 +189,84 @@ def login(login_req: LoginRequest, db: Session = Depends(get_db)):
         )
 
 
-@app.get("/books", response_model=List[BookOut])
-def list_books(db: Session = Depends(get_db)):
-    return db.query(Book).all()
+@app.get("/books")
+def list_books(
+    email: Optional[str] = Header(default=None, description="User email (optional)"),
+    password: Optional[str] = Header(default=None, description="User password (optional)"),
+    db: Session = Depends(get_db),
+):
+    """Get all books, optionally with purchase status for authenticated users"""
+    books = db.query(Book).all()
+    
+    # Check if user is authenticated
+    user = None
+    if email and password:
+        user = db.query(User).filter(User.email == email).first()
+        if user and not verify_password(password, user.password_hash):
+            user = None
+    
+    result = []
+    for book in books:
+        book_data = {
+            "id": book.id,
+            "title": book.title,
+            "author": book.author,
+            "price": float(book.price),
+            "description": book.description,
+            "pdf_url": book.pdf_path,  # pdf_path now contains URL
+            "cover_url": book.cover_url,  # Cover image URL
+            "is_purchased": False,
+        }
+        
+        # Check if user has purchased this book
+        if user:
+            book_data["is_purchased"] = user_has_book(db, user.id, book.id)
+        
+        result.append(book_data)
+    
+    return result
+
+
+class BookCreate(BaseModel):
+    title: str
+    author: str
+    price: float
+    description: Optional[str] = None
+    pdf_url: str = Field(..., description="URL to the PDF file")
+    cover_url: Optional[str] = Field(None, description="URL to the cover image (optional)")
 
 
 @app.post("/admin/books")
-async def upload_book(
-    title: str,
-    author: str,
-    price: float,
-    description: Optional[str] = None,
-    pdf: UploadFile = File(...),
+def create_book(
+    book_data: BookCreate,
     admin_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    if not pdf.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="File must be a PDF")
+    """Create a new book with PDF URL"""
+    # Validate URL format
+    if not book_data.pdf_url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="PDF URL must be a valid HTTP/HTTPS URL")
+    
+    # Optional: Validate that URL ends with .pdf (can be removed if URLs don't have extensions)
+    # if not book_data.pdf_url.lower().endswith(".pdf"):
+    #     raise HTTPException(status_code=400, detail="URL should point to a PDF file")
 
-    safe_name = f"{int(datetime.utcnow().timestamp())}_{pdf.filename}"
-    file_path = os.path.join(UPLOAD_DIR, safe_name)
-
-    with open(file_path, "wb") as f:
-        content = await pdf.read()
-        f.write(content)
-
+    # Validate cover URL if provided
+    if book_data.cover_url and not book_data.cover_url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="Cover image URL must be a valid HTTP/HTTPS URL")
+    
     book = Book(
-        title=title,
-        author=author,
-        price=price,
-        description=description,
-        pdf_path=file_path,
+        title=book_data.title,
+        author=book_data.author,
+        price=book_data.price,
+        description=book_data.description,
+        pdf_path=book_data.pdf_url,  # Using pdf_path field to store URL
+        cover_url=book_data.cover_url,  # Store cover image URL
     )
     db.add(book)
     db.commit()
     db.refresh(book)
-    return {"id": book.id, "message": "Book uploaded"}
+    return {"id": book.id, "message": "Book created successfully"}
 
 
 def send_payment_email(order_id: int, user_email: str, book_title: str, amount: float, status: str, payment_time: str):
@@ -362,6 +404,7 @@ def download_book(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Redirect to PDF URL if user has purchased the book"""
     book = db.query(Book).filter(Book.id == book_id).first()
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
@@ -372,11 +415,8 @@ def download_book(
             detail="You must buy this book to download it",
         )
 
-    return FileResponse(
-        book.pdf_path,
-        media_type="application/pdf",
-        filename=os.path.basename(book.pdf_path),
-    )
+    # pdf_path now contains the URL
+    return RedirectResponse(url=book.pdf_path)
 
 
 @app.get("/admin/orders")
@@ -434,10 +474,108 @@ def get_all_books_admin(
             "author": book.author,
             "price": float(book.price),
             "description": book.description,
+            "cover_url": book.cover_url,
             "purchase_count": purchase_count,
             "created_at": book.created_at.isoformat() if book.created_at else None,
         })
     return result
+
+
+@app.delete("/admin/books/{book_id}")
+def delete_book(
+    book_id: int,
+    admin_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Delete a book (admin only)
+    
+    Note: Books can be deleted even if they have been purchased.
+    Users who purchased the book have already downloaded it, so deletion is safe.
+    """
+    try:
+        book = db.query(Book).filter(Book.id == book_id).first()
+        if not book:
+            raise HTTPException(status_code=404, detail="Book not found")
+        
+        # Check if book has been purchased (for informational purposes only)
+        purchase_count = (
+            db.query(OrderItem)
+            .join(Order, OrderItem.order_id == Order.id)
+            .filter(OrderItem.book_id == book.id, Order.status == "paid")
+            .count()
+        )
+        
+        # Delete all order items associated with this book first (to avoid foreign key constraint)
+        # This is safe because users have already downloaded the book
+        # Use bulk delete for better performance
+        try:
+            deleted_items = db.query(OrderItem).filter(OrderItem.book_id == book_id).delete(synchronize_session=False)
+            # Flush to ensure deletions are processed before deleting the book
+            db.flush()
+        except Exception as delete_items_error:
+            # If bulk delete fails, try individual deletion
+            print(f"Bulk delete failed, trying individual deletion: {delete_items_error}")
+            order_items = db.query(OrderItem).filter(OrderItem.book_id == book_id).all()
+            deleted_items = 0
+            for item in order_items:
+                try:
+                    db.delete(item)
+                    deleted_items += 1
+                except Exception as e:
+                    print(f"Failed to delete order item {item.id}: {e}")
+            db.flush()
+        
+        # Now delete the book
+        db.delete(book)
+        db.commit()
+        
+        message = "Book deleted successfully"
+        if purchase_count > 0:
+            message += f" (Note: {purchase_count} purchase(s) were associated with this book, but users have already downloaded it)"
+        
+        return {
+            "message": message,
+            "book_id": book_id,
+            "had_purchases": purchase_count > 0,
+            "purchase_count": purchase_count,
+            "deleted_order_items": deleted_items
+        }
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404)
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        error_msg = str(e)
+        # Log the full error for debugging
+        print(f"Delete book error: {error_msg}")
+        print(f"Error type: {type(e).__name__}")
+        
+        # Check if it's a foreign key constraint error
+        if "foreign key" in error_msg.lower() or "constraint" in error_msg.lower() or "1451" in error_msg or "1452" in error_msg:
+            # Try alternative approach: delete using raw SQL with parameterized queries
+            try:
+                # Use parameterized SQL to safely delete order items and book
+                db.execute(text("DELETE FROM order_items WHERE book_id = :book_id"), {"book_id": book_id})
+                db.execute(text("DELETE FROM books WHERE id = :book_id"), {"book_id": book_id})
+                db.commit()
+                return {
+                    "message": "Book deleted successfully (using alternative method)",
+                    "book_id": book_id,
+                    "had_purchases": purchase_count > 0,
+                    "purchase_count": purchase_count
+                }
+            except Exception as sql_error:
+                db.rollback()
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot delete book: Database constraint error. Please ensure all related records are removed. Error: {str(sql_error)}"
+                )
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete book: {error_msg}"
+        )
 
 
 @app.get("/admin/stats")
