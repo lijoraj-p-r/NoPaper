@@ -8,6 +8,7 @@ import Footer from "../components/Footer";
 import "./LoginPage.css";
 
 function LoginPage() {
+  // Logo will be added to the login form
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState("login"); // "login" or "signup"
@@ -78,7 +79,7 @@ function LoginPage() {
       <div className="login-wrapper">
         <div className="login-shell">
         <div className="brand-panel">
-          <div className="brand-mark">NB</div>
+          <img src="/favicon.ico" alt="NoPaper Logo" className="brand-logo" />
           <h1>NoPaper Books</h1>
           <p>Curated digital books, instant access in a few clicks.</p>
         </div>
