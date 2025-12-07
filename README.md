@@ -1,3 +1,5 @@
+<img width="1366" height="768" alt="Screenshot (742)" src="https://github.com/user-attachments/assets/9cfba626-f730-4b10-b13e-490d7b65067e" />
+
 # NoPaper - Digital Book Marketplace
 
 A modern full-stack digital book marketplace application that allows users to browse, purchase, and download PDF books. Features include UPI payment integration, email notifications, dark/light mode, and a comprehensive admin dashboard.
